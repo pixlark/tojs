@@ -12,6 +12,14 @@ let explode str =
     (String.length str)
     (fun i -> String.get str i)
 
+let rec iterate f l =
+  match f l with
+  | Some (result, rest) ->
+     (match rest with
+      | [] -> [result]
+      | _  -> result::(iterate f rest))
+  | None -> []
+
 (* Lexer *)
 
 type token =
