@@ -15,17 +15,16 @@ let explode str =
     (fun i -> String.get str i)
 
 let (>>=) = Result.bind
-
-
+              
 let rec iterate
-          (f: ('a list -> ('b * ('a list), string) result))
-          (l: 'a list)
-        : ('b list, string) result = 
+          (f : 'a list -> ('c * ('a list), string) result)
+          (l : 'a list)
+        : ('c list, string) result = 
   match f l with
-  | Ok (x, xs) ->
-     (match xs with
-      | [] -> Ok [xs]
-      | _  -> map (List.cons x) (iterate f xs))
+  | Ok (got, remaining) ->
+     (match remaining with
+      | [] -> Ok [got]
+      | _  -> map (List.cons got) (iterate f remaining))
   | Error e -> Error e
 
 (* Lexer *)
@@ -44,4 +43,3 @@ let nextToken = function
   | _ -> Error "Unrecognized char"
 
 let lex = iterate nextToken
-            
