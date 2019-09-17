@@ -1,3 +1,5 @@
+open Result
+
 (* Utility *)
 
 let listInit n f =
@@ -12,13 +14,19 @@ let explode str =
     (String.length str)
     (fun i -> String.get str i)
 
-let rec iterate f l =
+let (>>=) = Result.bind
+
+
+let rec iterate
+          (f: ('a list -> ('b * ('a list), string) result))
+          (l: 'a list)
+        : ('b list, string) result = 
   match f l with
-  | Some (result, rest) ->
-     (match rest with
-      | [] -> [result]
-      | _  -> result::(iterate f rest))
-  | None -> []
+  | Ok (x, xs) ->
+     (match xs with
+      | [] -> Ok [xs]
+      | _  -> map (List.cons x) (iterate f xs))
+  | Error e -> Error e
 
 (* Lexer *)
 
@@ -30,8 +38,10 @@ type token =
 
 let nextToken = function
   (* Check against terminal tokens *)
-  | ('('::xs) -> Some (LeftParen, xs)
-  | (')'::xs) -> Some (RightParen, xs)
-  | ('-'::'>'::xs) -> Some (RightArrow, xs)
-  | _ -> None
+  | ('('::xs) -> Ok (LeftParen, xs)
+  | (')'::xs) -> Ok (RightParen, xs)
+  | ('-'::'>'::xs) -> Ok (RightArrow, xs)
+  | _ -> Error "Unrecognized char"
 
+let lex = iterate nextToken
+            
