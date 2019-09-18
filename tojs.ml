@@ -4,7 +4,10 @@ open Result
 
 let compose f g = (fun x -> f (g x))
 let (<<) = compose
-       
+
+let composeReverse f g = (fun x -> g (f x))
+let (>>) = composeReverse
+             
 let isDigit = function
   | '0' .. '9' -> true
   | _ -> false
@@ -54,13 +57,14 @@ type token =
   | RightParen
   | RightArrow
   | Number of int
+  | Symbol of string
 
-type 'a continuation = 'a * char list
+type ('a, 'b) continuation = 'a * 'b list
 
 let rec pmap
           (f: 'a -> 'b)
-          (c: 'a continuation)
-        : 'b continuation =
+          (c: ('a, 'n) continuation)
+        : ('b, 'n) continuation =
   match c with
   | (a, rest) -> (f a, rest)
                                  
@@ -85,6 +89,7 @@ let rec nextToken = function
      then Ok (pmap
                 (fun lst -> Number (int_of_string (implode lst)))
                 (readWhile isDigit (c::cs)))
+     (* Symbols *)
      else if isSymbolic c
      then Ok (pmap
                 (fun lst -> Symbol (implode lst))
@@ -93,3 +98,26 @@ let rec nextToken = function
   | [] -> Error "End of file"
 
 let lex = iterate nextToken << explode
+
+(* Parser *)
+type ast =
+  | Integer of int
+  | Arrow of {
+      left: ast;
+      right: ast;
+    }
+
+let rec parseAtom = function
+  | (Number n)::rest -> Ok (Integer n, rest)
+  | _ -> Error "Unexpected token"
+               
+and parseArrow toks =
+  (parseAtom toks) >>= (fun (left, rest) ->
+    (match rest with
+     | RightArrow::rest -> (parseArrow rest) >>= (fun (right, rest) ->
+         Ok (Arrow { left = left; right = right; }, rest))
+     | _ -> Ok (left, rest)))
+
+let parse = lex >> (fun res -> match res with
+                               | Ok toks -> (iterate parseArrow toks)
+                               | Error e -> Error e)
