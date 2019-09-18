@@ -2,6 +2,10 @@ open Result
 
 (* Utility *)
 
+let isDigit = function
+  | '0' .. '9' -> true
+  | _ -> false
+       
 let listInit n f =
   let rec helper i acc =
     if i < 0
@@ -14,6 +18,11 @@ let explode str =
     (String.length str)
     (fun i -> String.get str i)
 
+let implode lst =
+  String.init
+    (List.length lst)
+    (fun i -> List.nth lst i)
+    
 let (>>=) = Result.bind
               
 let rec iterate
@@ -35,11 +44,23 @@ type token =
   | RightArrow
   | Number of int
 
+let rec readWhile f = function
+  | (c::cs) -> if f c
+               then let (str, rest) = readWhile f cs
+                    in (c::str, rest)
+               else ([], (c::cs))
+  | [] -> ([], [])
+                
 let nextToken = function
   (* Check against terminal tokens *)
-  | ('('::xs) -> Ok (LeftParen, xs)
-  | (')'::xs) -> Ok (RightParen, xs)
-  | ('-'::'>'::xs) -> Ok (RightArrow, xs)
-  | _ -> Error "Unrecognized char"
+  | ('('::cs) -> Ok (LeftParen, cs)
+  | (')'::cs) -> Ok (RightParen, cs)
+  | ('-'::'>'::cs) -> Ok (RightArrow, cs)
+  (* Number *)
+  | (c::cs) -> if   isDigit c
+               then let (lst, rest) = (readWhile isDigit (c::cs))
+                    in Ok (Number (int_of_string (implode lst)), rest)
+               else Error "Unrecognized char"
+  | [] -> Error "End of file"
 
 let lex = iterate nextToken
