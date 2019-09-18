@@ -12,7 +12,11 @@ let isDigit = function
 let isSpace = function
   | ' ' | '\t' | '\n' | '\r' -> true
   | _ -> false
-           
+
+let isSymbolic = function
+  | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
+  | _ -> false
+
 let listInit n f =
   let rec helper i acc =
     if i < 0
@@ -81,6 +85,10 @@ let rec nextToken = function
      then Ok (pmap
                 (fun lst -> Number (int_of_string (implode lst)))
                 (readWhile isDigit (c::cs)))
+     else if isSymbolic c
+     then Ok (pmap
+                (fun lst -> Symbol (implode lst))
+                (readWhile (fun c -> isDigit c || isSymbolic c) (c::cs)))
      else Error "Unrecognized char"
   | [] -> Error "End of file"
 
