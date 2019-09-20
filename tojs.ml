@@ -3,10 +3,10 @@ open Result
 (* Utility *)
 
 let compose f g = (fun x -> f (g x))
-let (<<) = compose
+let (<.) = compose
 
 let composeReverse f g = (fun x -> g (f x))
-let (>>) = composeReverse
+let (>.) = composeReverse
              
 let isDigit = function
   | '0' .. '9' -> true
@@ -56,6 +56,10 @@ type token =
   | LeftParen
   | RightParen
   | RightArrow
+  | PlusSign
+  | MinusSign
+  | TimesSign
+  | DivideSign
   | Number of int
   | Symbol of string
 
@@ -75,11 +79,15 @@ let rec readWhile f = function
   | [] -> ([], [])
 
 let rec nextToken = function
-  (* Check against terminal tokens *)
+  (* Constant tokens *)
   | ('('::cs) -> Ok (LeftParen, cs)
   | (')'::cs) -> Ok (RightParen, cs)
+  | ('+'::cs) -> Ok (PlusSign, cs)
   | ('-'::'>'::cs) -> Ok (RightArrow, cs)
-  (* Number *)
+  | ('-'::cs) -> Ok (MinusSign, cs)
+  | ('*'::cs) -> Ok (TimesSign, cs)
+  | ('/'::cs) -> Ok (DivideSign, cs)
+  (* Variable tokens *)
   | (c::cs) ->
      (* Whitespace *)
      if isSpace c
@@ -94,30 +102,58 @@ let rec nextToken = function
      then Ok (pmap
                 (fun lst -> Symbol (implode lst))
                 (readWhile (fun c -> isDigit c || isSymbolic c) (c::cs)))
-     else Error "Unrecognized char"
+     else Error (Printf.sprintf "Unrecognized char %c" c)
   | [] -> Error "End of file"
 
 let lex = iterate nextToken << explode
 
 (* Parser *)
 type ast =
+  (* Atomic *)
   | Integer of int
-  | Arrow of {
-      left: ast;
-      right: ast;
-    }
-
+  (* Math Operators *)
+  | Plus   of { left: ast; right: ast; }
+  | Minus  of { left: ast; right: ast; }
+  | Times  of { left: ast; right: ast; }
+  | Divide of { left: ast; right: ast; }
+  (* Misc Operators *)
+  | Arrow of { left: ast; right: ast; }
+              
 let rec parseAtom = function
   | (Number n)::rest -> Ok (Integer n, rest)
   | _ -> Error "Unexpected token"
-               
-and parseArrow toks =
+
+and parseMultDiv toks =
   (parseAtom toks) >>= (fun (left, rest) ->
+    let rec helper left toks =
+      match toks with
+      | TimesSign::rest -> (parseAtom rest) >>= (fun (right, rest) ->
+          helper (Times { left = left; right = right; }) rest)
+      | DivideSign::rest -> (parseAtom rest) >>= (fun (right, rest) ->
+          helper (Divide { left = left; right = right; }) rest)
+      | _ -> Ok(left, toks)
+    in helper left rest)
+               
+and parsePlusMinus toks =
+  (parseMultDiv toks) >>= (fun (left, rest) ->
+    let rec helper left toks =
+      match toks with
+      | PlusSign::rest -> (parseMultDiv rest) >>= (fun (right, rest) ->
+          helper (Plus { left = left; right = right; }) rest)
+      | MinusSign::rest -> (parseMultDiv rest) >>= (fun (right, rest) ->
+          helper (Minus { left = left; right = right; }) rest)
+      | _ -> Ok(left, toks)
+    in helper left rest)
+
+and parseArrow toks =
+  (parsePlusMinus toks) >>= (fun (left, rest) ->
     (match rest with
      | RightArrow::rest -> (parseArrow rest) >>= (fun (right, rest) ->
          Ok (Arrow { left = left; right = right; }, rest))
      | _ -> Ok (left, rest)))
 
-let parse = lex >> (fun res -> match res with
+let parse = lex >. (fun res -> match res with
                                | Ok toks -> (iterate parseArrow toks)
                                | Error e -> Error e)
+
+
