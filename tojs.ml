@@ -105,7 +105,7 @@ let rec nextToken = function
      else Error (Printf.sprintf "Unrecognized char %c" c)
   | [] -> Error "End of file"
 
-let lex = iterate nextToken << explode
+let lex = iterate nextToken <. explode
 
 (* Parser *)
 type ast =
@@ -121,6 +121,11 @@ type ast =
               
 let rec parseAtom = function
   | (Number n)::rest -> Ok (Integer n, rest)
+  | LeftParen::rest ->
+     (parseTop rest) >>= (fun (expr, rest) ->
+      match rest with
+      | RightParen::rest -> Ok (expr, rest)
+      | _ -> Error "Expected closing parentheses")
   | _ -> Error "Unexpected token"
 
 and parseMultDiv toks =
@@ -152,8 +157,12 @@ and parseArrow toks =
          Ok (Arrow { left = left; right = right; }, rest))
      | _ -> Ok (left, rest)))
 
+and parseTop toks = parseArrow toks
+                              
 let parse = lex >. (fun res -> match res with
                                | Ok toks -> (iterate parseArrow toks)
                                | Error e -> Error e)
 
+(* Compiler *)
+let cOut = stdout
 
